@@ -784,6 +784,78 @@ test("task forwards model selection and max reasoning effort to app-server turn/
   assert.equal(fakeState.lastTurnStart.effort, "max");
 });
 
+test("expert handoff returns a Sol-high offer until the user selects routing", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  installFakeCodex(binDir);
+  initGitRepo(repo);
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  run("git", ["add", "README.md"], { cwd: repo });
+  run("git", ["commit", "-m", "init"], { cwd: repo });
+
+  const result = run("node", [SCRIPT, "expert", "--json", "--name", "architecture-expert", "challenge this design"], {
+    cwd: repo,
+    env: buildEnv(binDir)
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, "selection_required");
+  assert.deepEqual(payload.defaultSelection, {
+    model: "gpt-5.6-sol",
+    effort: "high"
+  });
+  assert.deepEqual(payload.selected, { model: null, effort: null });
+  assert.equal(payload.request.expertName, "architecture-expert");
+  assert.equal(payload.request.handoff, "challenge this design");
+});
+
+test("expert handoff creates and names a persistent thread with selected routing", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  const statePath = path.join(binDir, "fake-codex-state.json");
+  installFakeCodex(binDir);
+  initGitRepo(repo);
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  run("git", ["add", "README.md"], { cwd: repo });
+  run("git", ["commit", "-m", "init"], { cwd: repo });
+
+  const result = run(
+    "node",
+    [
+      SCRIPT,
+      "expert",
+      "--json",
+      "--name",
+      "architecture-expert",
+      "--model",
+      "gpt-5.6-sol",
+      "--effort",
+      "high",
+      "challenge this design"
+    ],
+    {
+      cwd: repo,
+      env: buildEnv(binDir)
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(payload.status, "completed");
+  assert.equal(payload.expert.name, "architecture-expert");
+  assert.equal(payload.expert.model, "gpt-5.6-sol");
+  assert.equal(payload.expert.effort, "high");
+  assert.match(payload.finalMessage, /Handled the requested task/);
+  assert.equal(fakeState.lastThreadStart.model, "gpt-5.6-sol");
+  assert.equal(fakeState.lastThreadStart.ephemeral, false);
+  assert.equal(fakeState.threads[0].name, "architecture-expert");
+  assert.equal(fakeState.lastTurnStart.model, "gpt-5.6-sol");
+  assert.equal(fakeState.lastTurnStart.effort, "high");
+  assert.equal(fakeState.lastTurnStart.prompt, "challenge this design");
+});
+
 test("task logs reasoning summaries and assistant messages to the job log", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();

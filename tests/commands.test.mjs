@@ -75,6 +75,7 @@ test("continue is not exposed as a user-facing command", () => {
   assert.deepEqual(commandFiles, [
     "adversarial-review.md",
     "cancel.md",
+    "expert.md",
     "rescue.md",
     "result.md",
     "review.md",
@@ -82,6 +83,20 @@ test("continue is not exposed as a user-facing command", () => {
     "status.md",
     "transfer.md"
   ]);
+});
+
+test("expert command asks for model and effort before invoking the handoff", () => {
+  const source = read("commands/expert.md");
+  assert.match(source, /user-approved escalation/i);
+  assert.doesNotMatch(source, /disable-model-invocation:\s*true/);
+  assert.match(source, /AskUserQuestion` exactly once/i);
+  assert.match(source, /always pauses for the user's model-and-effort choice/i);
+  assert.match(source, /Sol \(Recommended\)/);
+  assert.match(source, /gpt-5\.6-sol/);
+  assert.match(source, /High \(Recommended\)/);
+  assert.match(source, /--model <selected-model-id> --effort <selected-effort>/);
+  assert.match(source, /Do not silently change the selected model or effort/i);
+  assert.match(source, /persistent named Codex thread/i);
 });
 
 test("rescue command absorbs continue semantics", () => {

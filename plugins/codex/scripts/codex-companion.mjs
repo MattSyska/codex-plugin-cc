@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { parseArgs, splitRawArgumentString } from "./lib/args.mjs";
 import {
+    buildExpertSelectionOffer,
     buildPersistentTaskThreadName,
     DEFAULT_CONTINUE_PROMPT,
     findLatestTaskThread,
@@ -19,6 +20,7 @@ import {
     parseStructuredOutput,
     readOutputSchema,
     runAppServerReview,
+    runExpertHandoff,
     runAppServerTurn
   } from "./lib/codex.mjs";
 import { resolveClaudeSessionPath } from "./lib/claude-session-transfer.mjs";
@@ -58,6 +60,8 @@ import {
   renderReviewResult,
   renderStoredJobResult,
   renderCancelReport,
+  renderExpertResult,
+  renderExpertSelectionOffer,
   renderJobStatusReport,
   renderSetupReport,
   renderStatusReport,
@@ -80,6 +84,7 @@ function printUsage() {
       "  node scripts/codex-companion.mjs review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>]",
       "  node scripts/codex-companion.mjs adversarial-review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>] [focus text]",
       "  node scripts/codex-companion.mjs task [--background] [--write] [--resume-last|--resume|--fresh] [--model <model|spark>] [--effort <none|minimal|low|medium|high|xhigh|max>] [prompt]",
+      "  node scripts/codex-companion.mjs expert [--name <name>] [--write] [--model <model>] [--effort <none|minimal|low|medium|high|xhigh|max>] [handoff]",
       "  node scripts/codex-companion.mjs transfer [--source <claude-jsonl>] [--json]",
       "  node scripts/codex-companion.mjs status [job-id] [--all] [--json]",
       "  node scripts/codex-companion.mjs result [job-id] [--json]",
@@ -759,6 +764,64 @@ async function handleReview(argv) {
   });
 }
 
+async function handleExpert(argv) {
+  const { options, positionals } = parseCommandInput(argv, {
+    valueOptions: ["model", "effort", "cwd", "prompt-file", "name"],
+    booleanOptions: ["json", "write"],
+    aliasMap: {
+      m: "model"
+    }
+  });
+
+  const cwd = resolveCommandCwd(options);
+  const prompt = readTaskPrompt(cwd, options, positionals);
+  requireTaskRequest(prompt, false);
+
+  const model = normalizeRequestedModel(options.model);
+  const effort = normalizeReasoningEffort(options.effort);
+  const expertName = options.name === undefined ? "Expert" : String(options.name).trim();
+  if (!expertName) {
+    throw new Error("Provide a non-empty expert name with --name.");
+  }
+
+  if (!model || !effort) {
+    const offer = buildExpertSelectionOffer({
+      expertName,
+      model,
+      effort,
+      prompt
+    });
+    outputCommandResult(offer, renderExpertSelectionOffer(offer), options.json);
+    return;
+  }
+
+  ensureCodexAvailable(cwd);
+  const result = await runExpertHandoff(cwd, {
+    expertName,
+    model,
+    effort,
+    prompt,
+    sandbox: options.write ? "workspace-write" : "read-only"
+  });
+  const payload = {
+    status: result.status === 0 ? "completed" : "failed",
+    expert: {
+      name: result.expertName,
+      model: result.model,
+      effort: result.effort,
+      threadId: result.threadId,
+      turnId: result.turnId
+    },
+    finalMessage: result.finalMessage,
+    reasoningSummary: result.reasoningSummary,
+    error: result.error?.message ?? result.error ?? result.stderr ?? null
+  };
+  outputCommandResult(payload, renderExpertResult(payload), options.json);
+  if (result.status !== 0) {
+    process.exitCode = result.status;
+  }
+}
+
 async function handleTask(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["model", "effort", "cwd", "prompt-file"],
@@ -1042,6 +1105,9 @@ async function main() {
       break;
     case "task":
       await handleTask(argv);
+      break;
+    case "expert":
+      await handleExpert(argv);
       break;
     case "transfer":
       await handleTransfer(argv);
