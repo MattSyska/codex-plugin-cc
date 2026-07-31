@@ -895,6 +895,45 @@ test("expert handoff preserves raw name and write flags when selected routing is
   assert.equal(fakeState.lastTurnStart.prompt, "challenge this design");
 });
 
+test("expert handoff keeps appended routing active after a raw passthrough marker", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  const statePath = path.join(binDir, "fake-codex-state.json");
+  installFakeCodex(binDir);
+  initGitRepo(repo);
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  run("git", ["add", "README.md"], { cwd: repo });
+  run("git", ["commit", "-m", "init"], { cwd: repo });
+
+  const result = run(
+    "node",
+    [
+      SCRIPT,
+      "expert",
+      "--json --name architecture-expert --write run npm test -- --watch",
+      "--model",
+      "gpt-5.6-sol",
+      "--effort",
+      "high"
+    ],
+    {
+      cwd: repo,
+      env: buildEnv(binDir)
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(payload.status, "completed");
+  assert.equal(payload.expert.name, "architecture-expert");
+  assert.equal(payload.expert.model, "gpt-5.6-sol");
+  assert.equal(payload.expert.effort, "high");
+  assert.equal(fakeState.threads[0].name, "architecture-expert");
+  assert.equal(fakeState.lastThreadStart.sandbox, "workspace-write");
+  assert.equal(fakeState.lastTurnStart.prompt, "run npm test --watch");
+});
+
 test("task logs reasoning summaries and assistant messages to the job log", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();

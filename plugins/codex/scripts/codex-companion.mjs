@@ -155,6 +155,20 @@ function parseCommandInput(argv, config = {}) {
   });
 }
 
+function parseExpertInput(argv, config = {}) {
+  const [rawHandoff = "", ...selectedRouting] = argv;
+  const raw = parseCommandInput([rawHandoff], config);
+  const selected = parseCommandInput(selectedRouting, config);
+
+  return {
+    options: {
+      ...raw.options,
+      ...selected.options
+    },
+    positionals: [...raw.positionals, ...selected.positionals]
+  };
+}
+
 function resolveCommandCwd(options = {}) {
   return options.cwd ? path.resolve(process.cwd(), options.cwd) : process.cwd();
 }
@@ -767,7 +781,7 @@ async function handleReview(argv) {
 }
 
 async function handleExpert(argv) {
-  const { options, positionals } = parseCommandInput(argv, {
+  const { options, positionals } = parseExpertInput(argv, {
     valueOptions: ["model", "effort", "cwd", "prompt-file", "name"],
     booleanOptions: ["json", "write"],
     aliasMap: {
