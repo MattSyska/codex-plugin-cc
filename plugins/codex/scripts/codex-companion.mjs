@@ -72,6 +72,8 @@ const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const REVIEW_SCHEMA = path.join(ROOT_DIR, "schemas", "review-output.schema.json");
 const DEFAULT_STATUS_WAIT_TIMEOUT_MS = 240000;
 const DEFAULT_STATUS_POLL_INTERVAL_MS = 2000;
+const DEFAULT_TASK_MODEL = "gpt-5.6-luna";
+const DEFAULT_TASK_EFFORT = "max";
 const VALID_REASONING_EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const MODEL_ALIASES = new Map([["spark", "gpt-5.3-codex-spark"]]);
 const STOP_REVIEW_TASK_MARKER = "Run a stop-gate review of the previous Claude turn.";
@@ -130,6 +132,20 @@ function normalizeReasoningEffort(effort) {
     );
   }
   return normalized;
+}
+
+function resolveTaskRouting(options, resumeLast) {
+  const model = normalizeRequestedModel(options.model);
+  const effort = normalizeReasoningEffort(options.effort);
+
+  if (resumeLast) {
+    return { model, effort };
+  }
+
+  return {
+    model: model ?? DEFAULT_TASK_MODEL,
+    effort: effort ?? DEFAULT_TASK_EFFORT
+  };
 }
 
 function normalizeArgv(argv) {
@@ -849,8 +865,6 @@ async function handleTask(argv) {
 
   const cwd = resolveCommandCwd(options);
   const workspaceRoot = resolveCommandWorkspace(options);
-  const model = normalizeRequestedModel(options.model);
-  const effort = normalizeReasoningEffort(options.effort);
   const prompt = readTaskPrompt(cwd, options, positionals);
 
   const resumeLast = Boolean(options["resume-last"] || options.resume);
@@ -858,6 +872,7 @@ async function handleTask(argv) {
   if (resumeLast && fresh) {
     throw new Error("Choose either --resume/--resume-last or --fresh.");
   }
+  const { model, effort } = resolveTaskRouting(options, resumeLast);
   const write = Boolean(options.write);
   const taskMetadata = buildTaskRunMetadata({
     prompt,

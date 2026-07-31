@@ -158,7 +158,7 @@ Ask Codex to redesign the database connection to be more resilient.
 
 **Notes:**
 
-- if you do not pass `--model` or `--effort`, Codex chooses its own defaults.
+- for a fresh rescue task, if you do not pass `--model` or `--effort`, the companion explicitly starts `gpt-5.6-luna` at `max` effort; resumed tasks preserve their existing thread routing.
 - if you say `spark`, the plugin maps that to `gpt-5.3-codex-spark`
 - follow-up rescue requests can continue the latest Codex task in the repo
 

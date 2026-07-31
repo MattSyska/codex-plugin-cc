@@ -784,6 +784,28 @@ test("task forwards model selection and max reasoning effort to app-server turn/
   assert.equal(fakeState.lastTurnStart.effort, "max");
 });
 
+test("fresh tasks explicitly default to Luna at max effort", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  const statePath = path.join(binDir, "fake-codex-state.json");
+  installFakeCodex(binDir);
+  initGitRepo(repo);
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  run("git", ["add", "README.md"], { cwd: repo });
+  run("git", ["commit", "-m", "init"], { cwd: repo });
+
+  const result = run("node", [SCRIPT, "task", "diagnose the failing test"], {
+    cwd: repo,
+    env: buildEnv(binDir)
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const fakeState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  assert.equal(fakeState.lastThreadStart.model, "gpt-5.6-luna");
+  assert.equal(fakeState.lastTurnStart.model, "gpt-5.6-luna");
+  assert.equal(fakeState.lastTurnStart.effort, "max");
+});
+
 test("expert handoff returns a Sol-high offer until the user selects routing", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();
@@ -1088,6 +1110,11 @@ test("task --background enqueues a detached worker and exposes per-job status", 
   const launchPayload = JSON.parse(launched.stdout);
   assert.equal(launchPayload.status, "queued");
   assert.match(launchPayload.jobId, /^task-/);
+  const queuedJob = JSON.parse(
+    fs.readFileSync(path.join(resolveStateDir(repo), "jobs", `${launchPayload.jobId}.json`), "utf8")
+  );
+  assert.equal(queuedJob.request.model, "gpt-5.6-luna");
+  assert.equal(queuedJob.request.effort, "max");
 
   const waitedStatus = run(
     "node",
