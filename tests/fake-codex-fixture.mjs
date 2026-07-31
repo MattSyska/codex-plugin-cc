@@ -315,6 +315,7 @@ rl.on("line", (line) => {
         state.lastThreadStart = {
           cwd: message.params.cwd ?? null,
           model: message.params.model ?? null,
+          sandbox: message.params.sandbox ?? null,
           ephemeral: message.params.ephemeral ?? null
         };
         const thread = nextThread(state, message.params.cwd, message.params.ephemeral);

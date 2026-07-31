@@ -133,14 +133,16 @@ function normalizeReasoningEffort(effort) {
 }
 
 function normalizeArgv(argv) {
-  if (argv.length === 1) {
-    const [raw] = argv;
-    if (!raw || !raw.trim()) {
-      return [];
-    }
-    return splitRawArgumentString(raw);
+  if (argv.length === 0) {
+    return [];
   }
-  return argv;
+
+  const [first, ...rest] = argv;
+  if (!first || !first.trim()) {
+    return rest;
+  }
+
+  return [...splitRawArgumentString(first), ...rest];
 }
 
 function parseCommandInput(argv, config = {}) {
