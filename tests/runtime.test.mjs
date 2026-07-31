@@ -832,6 +832,35 @@ test("expert handoff returns a Sol-high offer until the user selects routing", (
   assert.equal(payload.request.handoff, "challenge this design");
 });
 
+test("expert handoff requires selection when raw input includes routing flags", () => {
+  const repo = makeTempDir();
+  const binDir = makeTempDir();
+  installFakeCodex(binDir);
+  initGitRepo(repo);
+  fs.writeFileSync(path.join(repo, "README.md"), "hello\n");
+  run("git", ["add", "README.md"], { cwd: repo });
+  run("git", ["commit", "-m", "init"], { cwd: repo });
+
+  const result = run(
+    "node",
+    [
+      SCRIPT,
+      "expert",
+      "--json --model gpt-5.6-sol --effort max investigate this design"
+    ],
+    {
+      cwd: repo,
+      env: buildEnv(binDir)
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, "selection_required");
+  assert.deepEqual(payload.selected, { model: null, effort: null });
+  assert.equal(payload.request.handoff, "investigate this design");
+});
+
 test("expert handoff creates and names a persistent thread with selected routing", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();

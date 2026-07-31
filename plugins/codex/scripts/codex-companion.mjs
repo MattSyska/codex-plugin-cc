@@ -179,7 +179,9 @@ function parseExpertInput(argv, config = {}) {
   return {
     options: {
       ...raw.options,
-      ...selected.options
+      ...selected.options,
+      model: selected.options.model,
+      effort: selected.options.effort
     },
     positionals: [...raw.positionals, ...selected.positionals]
   };
