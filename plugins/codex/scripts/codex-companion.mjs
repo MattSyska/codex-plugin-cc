@@ -171,9 +171,47 @@ function parseCommandInput(argv, config = {}) {
   });
 }
 
+function parseExpertRawHandoff(rawHandoff) {
+  const tokens = splitRawArgumentString(rawHandoff);
+  const options = {};
+  let index = 0;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (token === "--json" || token === "--write") {
+      options[token.slice(2)] = true;
+      index += 1;
+      continue;
+    }
+    if (token === "--name" || token.startsWith("--name=")) {
+      const value = token.startsWith("--name=") ? token.slice("--name=".length) : tokens[index + 1];
+      if (value === undefined) {
+        throw new Error("Missing value for --name");
+      }
+      options.name = value;
+      index += token === "--name" ? 2 : 1;
+      continue;
+    }
+    if (token === "--model" || token === "--effort" || token.startsWith("--model=") || token.startsWith("--effort=")) {
+      if (!token.includes("=") && tokens[index + 1] === undefined) {
+        throw new Error(`Missing value for ${token}`);
+      }
+      index += token.includes("=") ? 1 : 2;
+      continue;
+    }
+    break;
+  }
+
+  return { options, positionals: tokens.slice(index) };
+}
+
 function parseExpertInput(argv, config = {}) {
   const [rawHandoff = "", ...selectedRouting] = argv;
-  const raw = parseCommandInput([rawHandoff], config);
+  if (argv.length > 1 && rawHandoff.startsWith("-") && !/\s/.test(rawHandoff)) {
+    return parseCommandInput(argv, config);
+  }
+
+  const raw = parseExpertRawHandoff(rawHandoff);
   const selected = parseCommandInput(selectedRouting, config);
 
   return {
